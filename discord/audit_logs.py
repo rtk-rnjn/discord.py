@@ -119,15 +119,11 @@ def _transform_channel(entry: AuditLogEntry, data: Optional[Snowflake]) -> Optio
 
 
 def _transform_member_id(entry: AuditLogEntry, data: Optional[Snowflake]) -> Union[Member, User, None]:
-    if data is None:
-        return None
-    return entry._get_member(int(data))
+    return None if data is None else entry._get_member(int(data))
 
 
 def _transform_guild_id(entry: AuditLogEntry, data: Optional[Snowflake]) -> Optional[Guild]:
-    if data is None:
-        return None
-    return entry._state._get_guild(int(data))
+    return None if data is None else entry._state._get_guild(int(data))
 
 
 def _transform_overwrites(
@@ -571,11 +567,9 @@ class AuditLogEntry(Hashable):
             return None
 
         try:
-            converter = getattr(self, '_convert_target_' + self.action.target_type)
+            converter = getattr(self, f'_convert_target_{self.action.target_type}')
         except AttributeError:
-            if self._target_id is None:
-                return None
-            return Object(id=self._target_id)
+            return None if self._target_id is None else Object(id=self._target_id)
         else:
             return converter(self._target_id)
 

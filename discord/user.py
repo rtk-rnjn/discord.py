@@ -204,9 +204,7 @@ class BaseUser(_UserTag):
 
             This information is only available via :meth:`Client.fetch_user`.
         """
-        if self._accent_colour is None:
-            return None
-        return Colour(self._accent_colour)
+        return None if self._accent_colour is None else Colour(self._accent_colour)
 
     @property
     def accent_color(self) -> Optional[Colour]:
@@ -401,11 +399,7 @@ class ClientUser(BaseUser):
             payload['username'] = username
 
         if avatar is not MISSING:
-            if avatar is not None:
-                payload['avatar'] = _bytes_to_base64_data(avatar)
-            else:
-                payload['avatar'] = None
-
+            payload['avatar'] = None if avatar is None else _bytes_to_base64_data(avatar)
         data: UserPayload = await self._state.http.edit_profile(payload)
         return ClientUser(state=self._state, data=data)
 

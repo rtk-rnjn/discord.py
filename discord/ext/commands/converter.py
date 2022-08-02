@@ -224,9 +224,7 @@ class MemberConverter(IDConverter[discord.Member]):
 
         # If we're not being rate limited then we can use the websocket to actually query
         members = await guild.query_members(limit=1, user_ids=[user_id], cache=cache)
-        if not members:
-            return None
-        return members[0]
+        return members[0] if members else None
 
     async def convert(self, ctx: Context[BotT], argument: str) -> discord.Member:
         bot = ctx.bot
@@ -369,10 +367,7 @@ class PartialMessageConverter(Converter[discord.PartialMessage]):
 
         if guild_id is not None:
             guild = ctx.bot.get_guild(guild_id)
-            if guild is None:
-                return None
-            return guild._resolve_channel(channel_id)
-
+            return None if guild is None else guild._resolve_channel(channel_id)
         return ctx.bot.get_channel(channel_id)
 
     async def convert(self, ctx: Context[BotT], argument: str) -> discord.PartialMessage:
@@ -400,8 +395,7 @@ class MessageConverter(IDConverter[discord.Message]):
 
     async def convert(self, ctx: Context[BotT], argument: str) -> discord.Message:
         guild_id, message_id, channel_id = PartialMessageConverter._get_id_matches(ctx, argument)
-        message = ctx.bot._connection._get_message(message_id)
-        if message:
+        if message := ctx.bot._connection._get_message(message_id):
             return message
         channel = PartialMessageConverter._resolve_channel(ctx, guild_id, channel_id)
         if not channel or not isinstance(channel, discord.abc.Messageable):
@@ -663,8 +657,9 @@ class RoleConverter(IDConverter[discord.Role]):
         if not guild:
             raise NoPrivateMessage()
 
-        match = self._get_id_match(argument) or re.match(r'<@&([0-9]{15,20})>$', argument)
-        if match:
+        if match := self._get_id_match(argument) or re.match(
+            r'<@&([0-9]{15,20})>$', argument
+        ):
             result = guild.get_role(int(match.group(1)))
         else:
             result = discord.utils.get(guild._roles.values(), name=argument)
@@ -720,8 +715,8 @@ class GuildConverter(IDConverter[discord.Guild]):
         if result is None:
             result = discord.utils.get(ctx.bot.guilds, name=argument)
 
-            if result is None:
-                raise GuildNotFound(argument)
+        if result is None:
+            raise GuildNotFound(argument)
         return result
 
 
@@ -776,12 +771,12 @@ class PartialEmojiConverter(Converter[discord.PartialEmoji]):
     """
 
     async def convert(self, ctx: Context[BotT], argument: str) -> discord.PartialEmoji:
-        match = re.match(r'<(a?):([a-zA-Z0-9\_]{1,32}):([0-9]{15,20})>$', argument)
-
-        if match:
-            emoji_animated = bool(match.group(1))
-            emoji_name = match.group(2)
-            emoji_id = int(match.group(3))
+        if match := re.match(
+            r'<(a?):([a-zA-Z0-9\_]{1,32}):([0-9]{15,20})>$', argument
+        ):
+            emoji_animated = bool(match[1])
+            emoji_name = match[2]
+            emoji_id = int(match[3])
 
             return discord.PartialEmoji.with_state(
                 ctx.bot._connection, animated=emoji_animated, name=emoji_name, id=emoji_id
@@ -865,23 +860,17 @@ class ScheduledEventConverter(IDConverter[discord.ScheduledEvent]):
                 r'(?P<guild_id>[0-9]{15,20})/'
                 r'(?P<event_id>[0-9]{15,20})$'
             )
-            match = re.match(pattern, argument, flags=re.I)
-            if match:
-                # URL match
-                guild = ctx.bot.get_guild(int(match.group('guild_id')))
-
-                if guild:
-                    event_id = int(match.group('event_id'))
+            if match := re.match(pattern, argument, flags=re.I):
+                if guild := ctx.bot.get_guild(int(match['guild_id'])):
+                    event_id = int(match['event_id'])
                     result = guild.get_scheduled_event(event_id)
+            elif guild:
+                result = discord.utils.get(guild.scheduled_events, name=argument)
             else:
-                # lookup by name
-                if guild:
+                for guild in ctx.bot.guilds:
                     result = discord.utils.get(guild.scheduled_events, name=argument)
-                else:
-                    for guild in ctx.bot.guilds:
-                        result = discord.utils.get(guild.scheduled_events, name=argument)
-                        if result:
-                            break
+                    if result:
+                        break
         if result is None:
             raise ScheduledEventNotFound(argument)
 
@@ -1103,10 +1092,8 @@ else:
             if min is None and max is None:
                 raise TypeError('Range must not be empty')
 
-            if min is not None and max is not None:
-                # At this point max and min are both not none
-                if type(min) != type(max):
-                    raise TypeError('Both min and max in Range must be the same type')
+            if min is not None and max is not None and type(min) != type(max):
+                raise TypeError('Both min and max in Range must be the same type')
 
             if annotation not in (int, float):
                 raise TypeError(f'expected int or float as range type, received {annotation!r} instead')
@@ -1120,9 +1107,9 @@ else:
 
 def _convert_to_bool(argument: str) -> bool:
     lowered = argument.lower()
-    if lowered in ('yes', 'y', 'true', 't', '1', 'enable', 'on'):
+    if lowered in {'yes', 'y', 'true', 't', '1', 'enable', 'on'}:
         return True
-    elif lowered in ('no', 'n', 'false', 'f', '0', 'disable', 'off'):
+    elif lowered in {'no', 'n', 'false', 'f', '0', 'disable', 'off'}:
         return False
     else:
         raise BadBoolArgument(lowered)

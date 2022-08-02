@@ -90,7 +90,7 @@ class Cooldown:
 
     def __init__(self, rate: float, per: float) -> None:
         self.rate: int = int(rate)
-        self.per: float = float(per)
+        self.per: float = per
         self._window: float = 0.0
         self._tokens: int = self.rate
         self._last: float = 0.0
@@ -136,10 +136,7 @@ class Cooldown:
         current = current or time.time()
         tokens = self.get_tokens(current)
 
-        if tokens == 0:
-            return self.per - (current - self._window)
-
-        return 0.0
+        return self.per - (current - self._window) if tokens == 0 else 0.0
 
     def update_rate_limit(self, current: Optional[float] = None, *, tokens: int = 1) -> Optional[float]:
         """Updates the cooldown rate limit.

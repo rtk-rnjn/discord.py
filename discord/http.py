@@ -169,23 +169,11 @@ def handle_message_parameters(
         payload['embeds'] = [e.to_dict() for e in embeds]
 
     if embed is not MISSING:
-        if embed is None:
-            payload['embeds'] = []
-        else:
-            payload['embeds'] = [embed.to_dict()]
-
+        payload['embeds'] = [] if embed is None else [embed.to_dict()]
     if content is not MISSING:
-        if content is not None:
-            payload['content'] = str(content)
-        else:
-            payload['content'] = None
-
+        payload['content'] = str(content) if content is not None else None
     if view is not MISSING:
-        if view is not None:
-            payload['components'] = view.to_components()
-        else:
-            payload['components'] = []
-
+        payload['components'] = view.to_components() if view is not None else []
     if nonce is not None:
         payload['nonce'] = str(nonce)
 
@@ -193,11 +181,7 @@ def handle_message_parameters(
         payload['message_reference'] = message_reference
 
     if stickers is not MISSING:
-        if stickers is not None:
-            payload['sticker_ids'] = stickers
-        else:
-            payload['sticker_ids'] = []
-
+        payload['sticker_ids'] = stickers if stickers is not None else []
     payload['tts'] = tts
     if avatar_url:
         payload['avatar_url'] = str(avatar_url)
@@ -243,22 +227,21 @@ def handle_message_parameters(
     if channel_payload is not MISSING:
         payload = {
             'message': payload,
-        }
-        payload.update(channel_payload)
+        } | channel_payload
 
     multipart = []
     if files:
         multipart.append({'name': 'payload_json', 'value': utils._to_json(payload)})
         payload = None
-        for index, file in enumerate(files):
-            multipart.append(
-                {
-                    'name': f'files[{index}]',
-                    'value': file.fp,
-                    'filename': file.filename,
-                    'content_type': 'application/octet-stream',
-                }
-            )
+        multipart.extend(
+            {
+                'name': f'files[{index}]',
+                'value': file.fp,
+                'filename': file.filename,
+                'content_type': 'application/octet-stream',
+            }
+            for index, file in enumerate(files)
+        )
 
     return MultipartParameters(payload=payload, multipart=multipart, files=files)
 
@@ -398,7 +381,7 @@ class HTTPClient:
         }
 
         if self.token is not None:
-            headers['Authorization'] = 'Bot ' + self.token
+            headers['Authorization'] = f'Bot {self.token}'
         # some checking if it's a JSON request
         if 'json' in kwargs:
             headers['Content-Type'] = 'application/json'
@@ -910,10 +893,6 @@ class HTTPClient:
         reason: Optional[str] = None,
         **options: Any,
     ) -> Response[channel.GuildChannel]:
-        payload = {
-            'type': channel_type,
-        }
-
         valid_keys = (
             'name',
             'parent_id',
@@ -928,7 +907,9 @@ class HTTPClient:
             'video_quality_mode',
             'default_auto_archive_duration',
         )
-        payload.update({k: v for k, v in options.items() if k in valid_keys and v is not None})
+        payload = {
+            'type': channel_type,
+        } | {k: v for k, v in options.items() if k in valid_keys and v is not None}
 
         return self.request(Route('POST', '/guilds/{guild_id}/channels', guild_id=guild_id), json=payload, reason=reason)
 
@@ -1329,13 +1310,13 @@ class HTTPClient:
             }
         ]
 
-        for k, v in payload.items():
-            form.append(
-                {
-                    'name': k,
-                    'value': v,
-                }
-            )
+        form.extend(
+            {
+                'name': k,
+                'value': v,
+            }
+            for k, v in payload.items()
+        )
 
         return self.request(
             Route('POST', '/guilds/{guild_id}/stickers', guild_id=guild_id), form=form, files=[file], reason=reason

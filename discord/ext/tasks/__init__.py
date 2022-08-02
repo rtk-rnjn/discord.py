@@ -178,7 +178,7 @@ class Loop(Generic[LF]):
             raise TypeError(f'Expected coroutine function, not {type(self.coro).__name__!r}.')
 
     async def _call_loop_function(self, name: str, *args: Any, **kwargs: Any) -> None:
-        coro = getattr(self, '_' + name)
+        coro = getattr(self, f'_{name}')
         if coro is None:
             return
 
@@ -643,20 +643,6 @@ class Loop(Generic[LF]):
         return resolve_datetime(dt)
 
     def _start_time_relative_to(self, now: datetime.datetime) -> Optional[int]:
-        # now kwarg should be a datetime.datetime representing the time "now"
-        # to calculate the next time index from
-
-        # pre-condition: self._time is set
-
-        # Sole time comparisons are apparently broken, therefore, attach today's date
-        # to it in order to make the comparisons make sense.
-        # For example, if given a list of times [0, 3, 18]
-        # If it's 04:00 today then we know we have to wait until 18:00 today
-        # If it's 19:00 today then we know we we have to wait until 00:00 tomorrow
-        # Note that timezones need to be taken into consideration for this to work.
-        # If the timezone is set to UTC+9 and the now timezone is UTC
-        # A conversion needs to be done.
-        # i.e. 03:00 UTC+9 -> 18:00 UTC the previous day
         for idx, time in enumerate(self._time):
             # Convert the current time to the target timezone
             # e.g. 18:00 UTC -> 03:00 UTC+9
@@ -664,8 +650,7 @@ class Loop(Generic[LF]):
             start = now.astimezone(time.tzinfo)
             if time >= start.timetz():
                 return idx
-        else:
-            return None
+        return None
 
     def _get_time_parameter(
         self,

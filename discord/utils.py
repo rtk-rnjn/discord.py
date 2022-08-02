@@ -248,9 +248,7 @@ def parse_time(timestamp: Optional[str]) -> Optional[datetime.datetime]:
 
 
 def parse_time(timestamp: Optional[str]) -> Optional[datetime.datetime]:
-    if timestamp:
-        return datetime.datetime.fromisoformat(timestamp)
-    return None
+    return datetime.datetime.fromisoformat(timestamp) if timestamp else None
 
 
 def copy_doc(original: Callable) -> Callable[[T], T]:
@@ -455,10 +453,14 @@ def _get(iterable: Iterable[T], /, **attrs: Any) -> Optional[T]:
         return next((elem for elem in iterable if pred(elem) == v), None)
 
     converted = [(attrget(attr.replace('__', '.')), value) for attr, value in attrs.items()]
-    for elem in iterable:
-        if _all(pred(elem) == value for pred, value in converted):
-            return elem
-    return None
+    return next(
+        (
+            elem
+            for elem in iterable
+            if _all(pred(elem) == value for pred, value in converted)
+        ),
+        None,
+    )
 
 
 async def _aget(iterable: AsyncIterable[T], /, **attrs: Any) -> Optional[T]:
@@ -560,7 +562,7 @@ def get(iterable: _Iter[T], /, **attrs: Any) -> Union[Optional[T], Coro[Optional
 
 
 def _unique(iterable: Iterable[T]) -> List[T]:
-    return [x for x in dict.fromkeys(iterable)]
+    return list(dict.fromkeys(iterable))
 
 
 def _get_as_snowflake(data: Any, key: str) -> Optional[int]:
@@ -575,7 +577,7 @@ def _get_as_snowflake(data: Any, key: str) -> Optional[int]:
 def _get_mime_type_for_image(data: bytes):
     if data.startswith(b'\x89\x50\x4E\x47\x0D\x0A\x1A\x0A'):
         return 'image/png'
-    elif data[0:3] == b'\xff\xd8\xff' or data[6:10] in (b'JFIF', b'Exif'):
+    elif data[:3] == b'\xff\xd8\xff' or data[6:10] in (b'JFIF', b'Exif'):
         return 'image/jpeg'
     elif data.startswith((b'\x47\x49\x46\x38\x37\x61', b'\x47\x49\x46\x38\x39\x61')):
         return 'image/gif'
@@ -593,7 +595,7 @@ def _bytes_to_base64_data(data: bytes) -> str:
 
 
 def _is_submodule(parent: str, child: str) -> bool:
-    return parent == child or child.startswith(parent + '.')
+    return parent == child or child.startswith(f'{parent}.')
 
 
 if HAS_ORJSON:
@@ -613,21 +615,17 @@ else:
 
 def _parse_ratelimit_header(request: Any, *, use_clock: bool = False) -> float:
     reset_after: Optional[str] = request.headers.get('X-Ratelimit-Reset-After')
-    if use_clock or not reset_after:
-        utc = datetime.timezone.utc
-        now = datetime.datetime.now(utc)
-        reset = datetime.datetime.fromtimestamp(float(request.headers['X-Ratelimit-Reset']), utc)
-        return (reset - now).total_seconds()
-    else:
+    if not use_clock and reset_after:
         return float(reset_after)
+    utc = datetime.timezone.utc
+    now = datetime.datetime.now(utc)
+    reset = datetime.datetime.fromtimestamp(float(request.headers['X-Ratelimit-Reset']), utc)
+    return (reset - now).total_seconds()
 
 
 async def maybe_coroutine(f: MaybeAwaitableFunc[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
     value = f(*args, **kwargs)
-    if _isawaitable(value):
-        return await value
-    else:
-        return value  # type: ignore
+    return await value if _isawaitable(value) else value
 
 
 async def async_all(
@@ -750,8 +748,7 @@ _IS_ASCII = re.compile(r'^[\x00-\x7f]+$')
 
 def _string_width(string: str, *, _IS_ASCII=_IS_ASCII) -> int:
     """Returns string's width."""
-    match = _IS_ASCII.match(string)
-    if match:
+    if match := _IS_ASCII.match(string):
         return match.endpos
 
     UNICODE_WIDE_CHAR_TYPE = 'WFA'
@@ -785,16 +782,13 @@ def resolve_invite(invite: Union[Invite, str]) -> ResolvedInvite:
 
     if isinstance(invite, Invite):
         return ResolvedInvite(invite.code, invite.scheduled_event_id)
-    else:
-        rx = r'(?:https?\:\/\/)?discord(?:\.gg|(?:app)?\.com\/invite)\/[^/]+'
-        m = re.match(rx, invite)
+    rx = r'(?:https?\:\/\/)?discord(?:\.gg|(?:app)?\.com\/invite)\/[^/]+'
+    if m := re.match(rx, invite):
+        url = yarl.URL(invite)
+        code = url.parts[-1]
+        event_id = url.query.get('event')
 
-        if m:
-            url = yarl.URL(invite)
-            code = url.parts[-1]
-            event_id = url.query.get('event')
-
-            return ResolvedInvite(code, int(event_id) if event_id else None)
+        return ResolvedInvite(code, int(event_id) if event_id else None)
     return ResolvedInvite(invite, None)
 
 
@@ -818,12 +812,8 @@ def resolve_template(code: Union[Template, str]) -> str:
 
     if isinstance(code, Template):
         return code.code
-    else:
-        rx = r'(?:https?\:\/\/)?discord(?:\.new|(?:app)?\.com\/template)\/(.+)'
-        m = re.match(rx, code)
-        if m:
-            return m.group(1)
-    return code
+    rx = r'(?:https?\:\/\/)?discord(?:\.new|(?:app)?\.com\/template)\/(.+)'
+    return m[1] if (m := re.match(rx, code)) else code
 
 
 _MARKDOWN_ESCAPE_SUBREGEX = '|'.join(r'\{0}(?=([\s\S]*((?<!\{0})\{0})))'.format(c) for c in ('*', '`', '_', '~', '|'))
@@ -901,9 +891,7 @@ def escape_markdown(text: str, *, as_needed: bool = False, ignore_links: bool = 
         def replacement(match):
             groupdict = match.groupdict()
             is_url = groupdict.get('url')
-            if is_url:
-                return is_url
-            return '\\' + groupdict['markdown']
+            return is_url or '\\' + groupdict['markdown']
 
         regex = _MARKDOWN_STOCK_REGEX
         if ignore_links:

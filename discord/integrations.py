@@ -414,7 +414,7 @@ class PartialIntegration:
 def _integration_factory(value: str) -> Tuple[Type[Integration], str]:
     if value == 'discord':
         return BotIntegration, value
-    elif value in ('twitch', 'youtube'):
+    elif value in {'twitch', 'youtube'}:
         return StreamIntegration, value
     else:
         return Integration, value

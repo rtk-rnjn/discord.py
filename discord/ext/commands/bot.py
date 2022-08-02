@@ -201,7 +201,7 @@ class BotBase(GroupMixin[None]):
     def dispatch(self, event_name: str, /, *args: Any, **kwargs: Any) -> None:
         # super() will resolve to Client
         super().dispatch(event_name, *args, **kwargs)  # type: ignore
-        ev = 'on_' + event_name
+        ev = f'on_{event_name}'
         for event in self.extra_events.get(ev, []):
             self._schedule_event(event, ev, *args, **kwargs)  # type: ignore
 
@@ -226,13 +226,15 @@ class BotBase(GroupMixin[None]):
     @discord.utils.copy_doc(GroupMixin.add_command)
     def add_command(self, command: Command[Any, ..., Any], /) -> None:
         super().add_command(command)
-        if isinstance(command, (HybridCommand, HybridGroup)) and command.app_command:
-            # If a cog is also inheriting from app_commands.Group then it'll also
-            # add the hybrid commands as text commands, which would recursively add the
-            # hybrid commands as slash commands. This check just terminates that recursion
-            # from happening
-            if command.cog is None or not command.cog.__cog_is_app_commands_group__:
-                self.tree.add_command(command.app_command)
+        if (
+            isinstance(command, (HybridCommand, HybridGroup))
+            and command.app_command
+            and (
+                command.cog is None
+                or not command.cog.__cog_is_app_commands_group__
+            )
+        ):
+            self.tree.add_command(command.app_command)
 
     @discord.utils.copy_doc(GroupMixin.remove_command)
     def remove_command(self, name: str, /) -> Optional[Command[Any, ..., Any]]:
@@ -880,10 +882,12 @@ class BotBase(GroupMixin[None]):
 
         # remove all the listeners from the module
         for event_list in self.extra_events.copy().values():
-            remove = []
-            for index, event in enumerate(event_list):
-                if event.__module__ is not None and _is_submodule(name, event.__module__):
-                    remove.append(index)
+            remove = [
+                index
+                for index, event in enumerate(event_list)
+                if event.__module__ is not None
+                and _is_submodule(name, event.__module__)
+            ]
 
             for index in reversed(remove):
                 del event_list[index]

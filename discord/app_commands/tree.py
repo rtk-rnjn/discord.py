@@ -95,16 +95,10 @@ def _retrieve_guild_ids(
             return getattr(command, '_guild_ids', None)
 
         # guilds=[] is the same as global
-        if len(guilds) == 0:
-            return None
-
-        return {g.id for g in guilds}
-
+        return None if len(guilds) == 0 else {g.id for g in guilds}
     # At this point it should be...
     # guild=None or guild=Object
-    if guild is None:
-        return None
-    return {guild.id}
+    return None if guild is None else {guild.id}
 
 
 class CommandTree(Generic[ClientT]):
@@ -245,7 +239,7 @@ class CommandTree(Generic[ClientT]):
         except KeyError:
             mapping = {}
 
-        mapping.update(self._global_commands)
+        mapping |= self._global_commands
         if len(mapping) > 100:
             raise CommandLimitReached(guild_id=guild.id, limit=100)
 
@@ -313,11 +307,11 @@ class CommandTree(Generic[ClientT]):
             name = command.name
 
             def _context_menu_add_helper(
-                guild_id: Optional[int],
-                data: Dict[Tuple[str, Optional[int], int], ContextMenu],
-                name: str = name,
-                type: int = type,
-            ) -> None:
+                        guild_id: Optional[int],
+                        data: Dict[Tuple[str, Optional[int], int], ContextMenu],
+                        name: str = name,
+                        type: int = type,
+                    ) -> None:
                 key = (name, guild_id, type)
                 found = key in self._context_menus
                 if found and not override:
@@ -326,7 +320,7 @@ class CommandTree(Generic[ClientT]):
                 # If the key is found and overridden then it shouldn't count as an extra addition
                 # read as `0 if override and found else 1` if confusing
                 to_add = not (override and found)
-                total = sum(1 for _, g, t in self._context_menus if g == guild_id and t == type)
+                total = sum(g == guild_id and t == type for _, g, t in self._context_menus)
                 if total + to_add > 5:
                     raise CommandLimitReached(guild_id=guild_id, limit=5, type=AppCommandType(type))
                 data[key] = command
@@ -444,13 +438,12 @@ class CommandTree(Generic[ClientT]):
         if type is AppCommandType.chat_input:
             if guild is None:
                 return self._global_commands.pop(command, None)
+            try:
+                commands = self._guild_commands[guild.id]
+            except KeyError:
+                return None
             else:
-                try:
-                    commands = self._guild_commands[guild.id]
-                except KeyError:
-                    return None
-                else:
-                    return commands.pop(command, None)
+                return commands.pop(command, None)
         elif type in (AppCommandType.user, AppCommandType.message):
             guild_id = None if guild is None else guild.id
             key = (command, guild_id, type.value)
@@ -561,13 +554,12 @@ class CommandTree(Generic[ClientT]):
         if type is AppCommandType.chat_input:
             if guild is None:
                 return self._global_commands.get(command)
+            try:
+                commands = self._guild_commands[guild.id]
+            except KeyError:
+                return None
             else:
-                try:
-                    commands = self._guild_commands[guild.id]
-                except KeyError:
-                    return None
-                else:
-                    return commands.get(command)
+                return commands.get(command)
         elif type in (AppCommandType.user, AppCommandType.message):
             guild_id = None if guild is None else guild.id
             key = (command, guild_id, type.value)
@@ -641,13 +633,12 @@ class CommandTree(Generic[ClientT]):
         if type is AppCommandType.chat_input:
             if guild is None:
                 return list(self._global_commands.values())
+            try:
+                commands = self._guild_commands[guild.id]
+            except KeyError:
+                return []
             else:
-                try:
-                    commands = self._guild_commands[guild.id]
-                except KeyError:
-                    return []
-                else:
-                    return list(commands.values())
+                return list(commands.values())
         else:
             guild_id = None if guild is None else guild.id
             value = type.value
@@ -746,27 +737,30 @@ class CommandTree(Generic[ClientT]):
                 return base
 
     def _remove_with_module(self, name: str) -> None:
-        remove: List[Any] = []
-        for key, cmd in self._context_menus.items():
-            if cmd.module is not None and _is_submodule(name, cmd.module):
-                remove.append(key)
+        remove: List[Any] = [
+            key
+            for key, cmd in self._context_menus.items()
+            if cmd.module is not None and _is_submodule(name, cmd.module)
+        ]
 
         for key in remove:
             del self._context_menus[key]
 
-        remove = []
-        for key, cmd in self._global_commands.items():
-            if cmd.module is not None and _is_submodule(name, cmd.module):
-                remove.append(key)
+        remove = [
+            key
+            for key, cmd in self._global_commands.items()
+            if cmd.module is not None and _is_submodule(name, cmd.module)
+        ]
 
         for key in remove:
             del self._global_commands[key]
 
         for mapping in self._guild_commands.values():
-            remove = []
-            for key, cmd in mapping.items():
-                if cmd.module is not None and _is_submodule(name, cmd.module):
-                    remove.append(key)
+            remove = [
+                key
+                for key, cmd in mapping.items()
+                if cmd.module is not None and _is_submodule(name, cmd.module)
+            ]
 
             for key in remove:
                 del mapping[key]
@@ -791,13 +785,14 @@ class CommandTree(Generic[ClientT]):
         """
 
         command = interaction.command
-        if command is not None:
-            if command._has_any_error_handlers():
-                return
-
-            _log.error('Ignoring exception in command %r', command.name, exc_info=error)
-        else:
+        if command is None:
             _log.error('Ignoring exception in command tree', exc_info=error)
+
+        elif command._has_any_error_handlers():
+            return
+
+        else:
+            _log.error('Ignoring exception in command %r', command.name, exc_info=error)
 
     def error(self, coro: ErrorFunc) -> ErrorFunc:
         """A decorator that registers a coroutine as a local error handler.
@@ -867,10 +862,7 @@ class CommandTree(Generic[ClientT]):
                 raise TypeError('command function must be a coroutine function')
 
             if description is MISSING:
-                if func.__doc__ is None:
-                    desc = '…'
-                else:
-                    desc = _shorten(func.__doc__)
+                desc = '…' if func.__doc__ is None else _shorten(func.__doc__)
             else:
                 desc = description
 
@@ -1007,12 +999,11 @@ class CommandTree(Generic[ClientT]):
         parents: List[str] = []
         name = data['name']
 
-        command_guild_id = _get_as_snowflake(data, 'guild_id')
-        if command_guild_id:
+        if command_guild_id := _get_as_snowflake(data, 'guild_id'):
             try:
                 guild_commands = self._guild_commands[command_guild_id]
             except KeyError:
-                command = None if not self.fallback_to_global else self._global_commands.get(name)
+                command = self._global_commands.get(name) if self.fallback_to_global else None
             else:
                 command = guild_commands.get(name)
                 if command is None and self.fallback_to_global:
@@ -1039,10 +1030,9 @@ class CommandTree(Generic[ClientT]):
                     if command is None:
                         raise CommandNotFound(name, parents)
                     options = option.get('options', [])
-                    break
                 else:
                     searching = False
-                    break
+                break
             else:
                 break
 

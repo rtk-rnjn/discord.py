@@ -293,10 +293,7 @@ class FlagsMeta(type):
             if frame is None:
                 local_ns = {}
             else:
-                if frame.f_back is None:
-                    local_ns = frame.f_locals
-                else:
-                    local_ns = frame.f_back.f_locals
+                local_ns = frame.f_locals if frame.f_back is None else frame.f_back.f_locals
         finally:
             del frame
 
@@ -304,8 +301,8 @@ class FlagsMeta(type):
         aliases: Dict[str, str] = {}
         for base in reversed(bases):
             if base.__dict__.get('__commands_is_flag__', False):
-                flags.update(base.__dict__['__commands_flags__'])
-                aliases.update(base.__dict__['__commands_flag_aliases__'])
+                flags |= base.__dict__['__commands_flags__']
+                aliases |= base.__dict__['__commands_flag_aliases__']
                 if case_insensitive is MISSING:
                     attrs['__commands_flag_case_insensitive__'] = base.__dict__['__commands_flag_case_insensitive__']
                 if delimiter is MISSING:
@@ -340,7 +337,7 @@ class FlagsMeta(type):
             aliases = {key.casefold(): value.casefold() for key, value in aliases.items()}
             regex_flags = re.IGNORECASE
 
-        keys = list(re.escape(k) for k in flags)
+        keys = [re.escape(k) for k in flags]
         keys.extend(re.escape(a) for a in aliases)
         keys = sorted(keys, key=lambda t: len(t), reverse=True)
 
@@ -582,14 +579,13 @@ class FlagConverter(metaclass=FlagsMeta):
             except KeyError:
                 if flag.required:
                     raise MissingRequiredFlag(flag)
+                if callable(flag.default):
+                    # Type checker does not understand flag.default is a Callable
+                    default = await maybe_coroutine(flag.default, ctx)  # type: ignore
+                    setattr(self, flag.attribute, default)
                 else:
-                    if callable(flag.default):
-                        # Type checker does not understand flag.default is a Callable
-                        default = await maybe_coroutine(flag.default, ctx)  # type: ignore
-                        setattr(self, flag.attribute, default)
-                    else:
-                        setattr(self, flag.attribute, flag.default)
-                    continue
+                    setattr(self, flag.attribute, flag.default)
+                continue
 
             if flag.max_args > 0 and len(values) > flag.max_args:
                 if flag.override:

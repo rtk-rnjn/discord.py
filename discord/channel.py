@@ -208,9 +208,7 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
     @property
     def type(self) -> Literal[ChannelType.text, ChannelType.news]:
         """:class:`ChannelType`: The channel's Discord type."""
-        if self._type == 0:
-            return ChannelType.text
-        return ChannelType.news
+        return ChannelType.text if self._type == 0 else ChannelType.news
 
     @property
     def _sorting_bucket(self) -> int:
@@ -582,7 +580,10 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         if avatar is not None:
             avatar = utils._bytes_to_base64_data(avatar)  # type: ignore # Silence reassignment error
 
-        data = await self._state.http.create_webhook(self.id, name=str(name), avatar=avatar, reason=reason)
+        data = await self._state.http.create_webhook(
+            self.id, name=name, avatar=avatar, reason=reason
+        )
+
         return Webhook.from_state(data, state=self._state)
 
     async def follow(self, *, destination: TextChannel, reason: Optional[str] = None) -> Webhook:
@@ -1303,7 +1304,10 @@ class VoiceChannel(discord.abc.Messageable, VocalGuildChannel):
         if avatar is not None:
             avatar = utils._bytes_to_base64_data(avatar)  # type: ignore # Silence reassignment error
 
-        data = await self._state.http.create_webhook(self.id, name=str(name), avatar=avatar, reason=reason)
+        data = await self._state.http.create_webhook(
+            self.id, name=name, avatar=avatar, reason=reason
+        )
+
         return Webhook.from_state(data, state=self._state)
 
     @utils.copy_doc(discord.abc.GuildChannel.clone)
@@ -2377,7 +2381,10 @@ class ForumChannel(discord.abc.GuildChannel, Hashable):
         if avatar is not None:
             avatar = utils._bytes_to_base64_data(avatar)  # type: ignore # Silence reassignment error
 
-        data = await self._state.http.create_webhook(self.id, name=str(name), avatar=avatar, reason=reason)
+        data = await self._state.http.create_webhook(
+            self.id, name=name, avatar=avatar, reason=reason
+        )
+
         return Webhook.from_state(data, state=self._state)
 
 

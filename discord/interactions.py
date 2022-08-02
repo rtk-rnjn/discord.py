@@ -274,15 +274,14 @@ class Interaction:
         # The type checker does not understand this narrowing
         data: ApplicationCommandInteractionData = self.data  # type: ignore
         cmd_type = data.get('type', 1)
-        if cmd_type == 1:
-            try:
-                command, _ = tree._get_app_command_options(data)
-            except DiscordException:
-                return None
-            else:
-                return command
-        else:
+        if cmd_type != 1:
             return tree._get_context_menu(data)
+        try:
+            command, _ = tree._get_app_command_options(data)
+        except DiscordException:
+            return None
+        else:
+            return command
 
     @utils.cached_slot_property('_cs_response')
     def response(self) -> InteractionResponse:

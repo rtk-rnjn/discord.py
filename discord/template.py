@@ -202,10 +202,7 @@ class Template:
             The guild created. This is not the same guild that is
             added to cache.
         """
-        base64_icon = None
-        if icon is not MISSING:
-            base64_icon = _bytes_to_base64_data(icon)
-
+        base64_icon = _bytes_to_base64_data(icon) if icon is not MISSING else None
         data = await self._state.http.create_from_template(self.code, name, base64_icon)
         return Guild(data=data, state=self._state)
 

@@ -72,7 +72,7 @@ if TYPE_CHECKING:
 def _create_value_cls(name: str, comparable: bool):
     # All the type ignores here are due to the type checker being unable to recognise
     # Runtime type creation without exploding.
-    cls = namedtuple('_EnumValue_' + name, 'name value')
+    cls = namedtuple(f'_EnumValue_{name}', 'name value')
     cls.__repr__ = lambda self: f'<{name}.{self.name}: {self.value!r}>'  # type: ignore
     cls.__str__ = lambda self: f'{name}.{self.name}'  # type: ignore
     if comparable:
@@ -132,35 +132,35 @@ class EnumMeta(type):
         value_cls._actual_enum_cls_ = actual_cls  # type: ignore # Runtime attribute isn't understood
         return actual_cls
 
-    def __iter__(cls) -> Iterator[Any]:
+    def __iter__(self) -> Iterator[Any]:
         return (cls._enum_member_map_[name] for name in cls._enum_member_names_)
 
-    def __reversed__(cls) -> Iterator[Any]:
+    def __reversed__(self) -> Iterator[Any]:
         return (cls._enum_member_map_[name] for name in reversed(cls._enum_member_names_))
 
-    def __len__(cls) -> int:
-        return len(cls._enum_member_names_)
+    def __len__(self) -> int:
+        return len(self._enum_member_names_)
 
-    def __repr__(cls) -> str:
-        return f'<enum {cls.__name__}>'
+    def __repr__(self) -> str:
+        return f'<enum {self.__name__}>'
 
     @property
-    def __members__(cls) -> Mapping[str, Any]:
-        return types.MappingProxyType(cls._enum_member_map_)
+    def __members__(self) -> Mapping[str, Any]:
+        return types.MappingProxyType(self._enum_member_map_)
 
-    def __call__(cls, value: str) -> Any:
+    def __call__(self, value: str) -> Any:
         try:
-            return cls._enum_value_map_[value]
+            return self._enum_value_map_[value]
         except (KeyError, TypeError):
-            raise ValueError(f"{value!r} is not a valid {cls.__name__}")
+            raise ValueError(f"{value!r} is not a valid {self.__name__}")
 
-    def __getitem__(cls, key: str) -> Any:
-        return cls._enum_member_map_[key]
+    def __getitem__(self, key: str) -> Any:
+        return self._enum_member_map_[key]
 
-    def __setattr__(cls, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: Any) -> None:
         raise TypeError('Enums are immutable.')
 
-    def __delattr__(cls, attr: str) -> None:
+    def __delattr__(self, attr: str) -> None:
         raise TypeError('Enums are immutable')
 
     def __instancecheck__(self, instance: Any) -> bool:

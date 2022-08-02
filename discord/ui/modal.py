@@ -196,10 +196,8 @@ class Modal(View):
         asyncio.create_task(self._scheduled_task(interaction), name=f'discord-ui-modal-dispatch-{self.id}')
 
     def to_dict(self) -> Dict[str, Any]:
-        payload = {
+        return {
             'custom_id': self.custom_id,
             'title': self.title,
             'components': self.to_components(),
         }
-
-        return payload

@@ -171,7 +171,7 @@ class Button(Item[V]):
 
     @disabled.setter
     def disabled(self, value: bool) -> None:
-        self._underlying.disabled = bool(value)
+        self._underlying.disabled = value
 
     @property
     def label(self) -> Optional[str]:
@@ -189,15 +189,15 @@ class Button(Item[V]):
 
     @emoji.setter
     def emoji(self, value: Optional[Union[str, Emoji, PartialEmoji]]) -> None:
-        if value is not None:
-            if isinstance(value, str):
-                self._underlying.emoji = PartialEmoji.from_str(value)
-            elif isinstance(value, _EmojiTag):
-                self._underlying.emoji = value._to_partial()
-            else:
-                raise TypeError(f'expected str, Emoji, or PartialEmoji, received {value.__class__} instead')
-        else:
+        if value is None:
             self._underlying.emoji = None
+
+        elif isinstance(value, str):
+            self._underlying.emoji = PartialEmoji.from_str(value)
+        elif isinstance(value, _EmojiTag):
+            self._underlying.emoji = value._to_partial()
+        else:
+            raise TypeError(f'expected str, Emoji, or PartialEmoji, received {value.__class__} instead')
 
     @classmethod
     def from_component(cls, button: ButtonComponent) -> Self:

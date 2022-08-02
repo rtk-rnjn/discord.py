@@ -883,10 +883,14 @@ class Guild(Hashable):
 
         .. versionadded:: 1.6
         """
-        for role in self._roles.values():
-            if role.is_premium_subscriber():
-                return role
-        return None
+        return next(
+            (
+                role
+                for role in self._roles.values()
+                if role.is_premium_subscriber()
+            ),
+            None,
+        )
 
     @property
     def self_role(self) -> Optional[Role]:
@@ -1011,17 +1015,13 @@ class Guild(Hashable):
         offline members.
         """
         count = self._member_count
-        if count is None:
-            return False
-        return count == len(self._members)
+        return False if count is None else count == len(self._members)
 
     @property
     def shard_id(self) -> int:
         """:class:`int`: Returns the shard ID for this guild if applicable."""
         count = self._state.shard_count
-        if count is None:
-            return 0
-        return (self.id >> 22) % count
+        return 0 if count is None else (self.id >> 22) % count
 
     @property
     def created_at(self) -> datetime.datetime:
@@ -1185,12 +1185,15 @@ class Guild(Hashable):
                 raise TypeError(f'Expected PermissionOverwrite received {perm.__class__.__name__}')
 
             allow, deny = perm.pair()
-            payload = {'allow': allow.value, 'deny': deny.value, 'id': target.id}
+            payload = {
+                'allow': allow.value,
+                'deny': deny.value,
+                'id': target.id,
+                'type': abc._Overwrites.ROLE
+                if isinstance(target, Role)
+                else abc._Overwrites.MEMBER,
+            }
 
-            if isinstance(target, Role):
-                payload['type'] = abc._Overwrites.ROLE
-            else:
-                payload['type'] = abc._Overwrites.MEMBER
 
             perms.append(payload)
 

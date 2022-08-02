@@ -246,11 +246,7 @@ class View:
         # If the timeout task is already running this allows it to update
         # the expiry while it's running
         if self.__timeout_task is not None:
-            if value is not None:
-                self.__timeout_expiry = time.monotonic() + value
-            else:
-                self.__timeout_expiry = None
-
+            self.__timeout_expiry = time.monotonic() + value if value is not None else None
         self.__timeout = value
 
     @property
@@ -553,8 +549,7 @@ class ViewStore:
             self._modals.pop(view.custom_id, None)  # type: ignore
             return
 
-        dispatch_info = self._views.get(view._cache_key)
-        if dispatch_info:
+        if dispatch_info := self._views.get(view._cache_key):
             for item in view._children:
                 if item.is_dispatchable():
                     dispatch_info.pop((item.type.value, item.custom_id), None)  # type: ignore

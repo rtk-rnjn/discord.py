@@ -307,7 +307,7 @@ class Activity(BaseActivity):
         if image.startswith('mp:'):
             return f'https://media.discordapp.net/{image[3:]}'
         elif self.application_id is not None:
-            return Asset.BASE + f'/app-assets/{self.application_id}/{image}.png'
+            return f'{Asset.BASE}/app-assets/{self.application_id}/{image}.png'
 
     @property
     def large_image_text(self) -> Optional[str]:
@@ -662,7 +662,7 @@ class Spotify:
         if large_image[:8] != 'spotify:':
             return ''
         album_image_id = large_image[8:]
-        return 'https://i.scdn.co/image/' + album_image_id
+        return f'https://i.scdn.co/image/{album_image_id}'
 
     @property
     def track_id(self) -> str:
@@ -787,12 +787,9 @@ class CustomActivity(BaseActivity):
         return hash((self.name, str(self.emoji)))
 
     def __str__(self) -> str:
-        if self.emoji:
-            if self.name:
-                return f'{self.emoji} {self.name}'
-            return str(self.emoji)
-        else:
+        if not self.emoji:
             return str(self.name)
+        return f'{self.emoji} {self.name}' if self.name else str(self.emoji)
 
     def __repr__(self) -> str:
         return f'<CustomActivity name={self.name!r} emoji={self.emoji!r}>'
@@ -829,10 +826,7 @@ def create_activity(data: Optional[ActivityPayload], state: ConnectionState) -> 
             # we removed the name key from data already
             ret = CustomActivity(name=name, **data)  # type: ignore
     elif game_type is ActivityType.streaming:
-        if 'url' in data:
-            # the url won't be None here
-            return Streaming(**data)  # type: ignore
-        return Activity(**data)
+        return Streaming(**data) if 'url' in data else Activity(**data)
     elif game_type is ActivityType.listening and 'sync_id' in data and 'session_id' in data:
         return Spotify(**data)
     else:

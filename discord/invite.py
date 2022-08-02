@@ -485,10 +485,7 @@ class Invite(Hashable):
         if channel is not None:
             return channel
 
-        if data is None:
-            return None
-
-        return PartialInviteChannel(data)
+        return None if data is None else PartialInviteChannel(data)
 
     def __str__(self) -> str:
         return self.url
@@ -511,9 +508,9 @@ class Invite(Hashable):
     @property
     def url(self) -> str:
         """:class:`str`: A property that retrieves the invite URL."""
-        url = self.BASE + '/' + self.code
+        url = f'{self.BASE}/{self.code}'
         if self.scheduled_event_id is not None:
-            url += '?event=' + str(self.scheduled_event_id)
+            url += f'?event={str(self.scheduled_event_id)}'
         return url
 
     def set_scheduled_event(self, scheduled_event: Snowflake, /) -> Self:

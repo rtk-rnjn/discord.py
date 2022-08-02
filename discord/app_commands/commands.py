@@ -22,6 +22,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 """
 
+
 from __future__ import annotations
 import inspect
 
@@ -88,11 +89,7 @@ __all__ = (
     'default_permissions',
 )
 
-if TYPE_CHECKING:
-    P = ParamSpec('P')
-else:
-    P = TypeVar('P')
-
+P = ParamSpec('P') if TYPE_CHECKING else TypeVar('P')
 T = TypeVar('T')
 F = TypeVar('F', bound=Callable[..., Any])
 GroupT = TypeVar('GroupT', bound='Binding')
@@ -267,7 +264,7 @@ def _context_menu_annotation(annotation: Any, *, _none: type = NoneType) -> AppC
         raise TypeError(msg)
 
     # Only Union[Member, User] is supported
-    if not all(arg in supported_types for arg in annotation.__args__):
+    if any(arg not in supported_types for arg in annotation.__args__):
         raise TypeError(f'unsupported types given inside {annotation!r}')
 
     return AppCommandType.user
@@ -295,7 +292,7 @@ def _populate_renames(params: Dict[str, CommandParameter], renames: Dict[str, st
 
     # original name to renamed name
 
-    for name in params.keys():
+    for name in params:
         new_name = renames.pop(name, MISSING)
 
         if new_name is MISSING:
@@ -329,7 +326,7 @@ def _populate_choices(params: Dict[str, CommandParameter], all_choices: Dict[str
         if param.type not in (AppCommandOptionType.string, AppCommandOptionType.number, AppCommandOptionType.integer):
             raise TypeError('choices are only supported for integer, string, or number option types')
 
-        if not all(param.type == choice._option_type for choice in choices):
+        if any(param.type != choice._option_type for choice in choices):
             raise TypeError('choices must all have the same inner option type as the parameter choice type')
 
         param.choices = choices
@@ -371,7 +368,7 @@ def _extract_parameters_from_callback(func: Callable[..., Any], globalns: Dict[s
         raise TypeError(f'callback {func.__qualname__!r} must have more than {required_params - 1} parameter(s)')
 
     iterator = iter(params.values())
-    for _ in range(0, required_params):
+    for _ in range(required_params):
         next(iterator)
 
     parameters: List[CommandParameter] = []
@@ -692,8 +689,9 @@ class Command(Generic[GroupT, P, T]):
         if param.autocomplete is None:
             raise CommandSignatureMismatch(self)
 
-        predicates = getattr(param.autocomplete, '__discord_app_commands_checks__', [])
-        if predicates:
+        if predicates := getattr(
+            param.autocomplete, '__discord_app_commands_checks__', []
+        ):
             try:
                 if not await async_all(f(interaction) for f in predicates):
                     if not interaction.response.is_done():
@@ -751,14 +749,14 @@ class Command(Generic[GroupT, P, T]):
         return ' '.join(reversed(names))
 
     async def _check_can_run(self, interaction: Interaction) -> bool:
-        if self.parent is not None and self.parent is not self.binding:
-            # For commands with a parent which isn't the binding, i.e.
-            # <binding>
-            #     <parent>
-            #         <command>
-            # The parent check needs to be called first
-            if not await maybe_coroutine(self.parent.interaction_check, interaction):
-                return False
+        if (
+            self.parent is not None
+            and self.parent is not self.binding
+            and not await maybe_coroutine(
+                self.parent.interaction_check, interaction
+            )
+        ):
+            return False
 
         if self.binding is not None:
             check: Optional[Check] = getattr(self.binding, 'interaction_check', None)
@@ -768,10 +766,11 @@ class Command(Generic[GroupT, P, T]):
                     return False
 
         predicates = self.checks
-        if not predicates:
-            return True
-
-        return await async_all(f(interaction) for f in predicates)
+        return (
+            await async_all(f(interaction) for f in predicates)
+            if predicates
+            else True
+        )
 
     def error(self, coro: Error[GroupT]) -> Error[GroupT]:
         """A decorator that registers a coroutine as a local error handler.
@@ -993,10 +992,11 @@ class ContextMenu:
 
     async def _check_can_run(self, interaction: Interaction) -> bool:
         predicates = self.checks
-        if not predicates:
-            return True
-
-        return await async_all(f(interaction) for f in predicates)
+        return (
+            await async_all(f(interaction) for f in predicates)
+            if predicates
+            else True
+        )
 
     def _has_any_error_handlers(self) -> bool:
         return self.on_error is not None
@@ -1235,10 +1235,16 @@ class Group:
         for child in self.__discord_app_commands_group_children__:
             # commands and groups created directly in this class (no parent)
             copy = (
-                child._copy_with(parent=self, binding=self, bindings=bindings, set_on_binding=False)
-                if not cls.__discord_app_commands_skip_init_binding__
-                else child
+                child
+                if cls.__discord_app_commands_skip_init_binding__
+                else child._copy_with(
+                    parent=self,
+                    binding=self,
+                    bindings=bindings,
+                    set_on_binding=False,
+                )
             )
+
 
             self._children[copy.name] = copy
             if copy._attr and not cls.__discord_app_commands_skip_init_binding__:
@@ -1327,9 +1333,7 @@ class Group:
         in a group like ``/foo bar`` the qualified name is ``foo bar``.
         """
 
-        if self.parent is None:
-            return self.name
-        return f'{self.parent.name} {self.name}'
+        return self.name if self.parent is None else f'{self.parent.name} {self.name}'
 
     def _get_internal_command(self, name: str) -> Optional[Union[Command[Any, ..., Any], Group]]:
         return self._children.get(name)
@@ -1534,10 +1538,7 @@ class Group:
                 raise TypeError('command function must be a coroutine function')
 
             if description is MISSING:
-                if func.__doc__ is None:
-                    desc = '…'
-                else:
-                    desc = _shorten(func.__doc__)
+                desc = '…' if func.__doc__ is None else _shorten(func.__doc__)
             else:
                 desc = description
 
@@ -1582,10 +1583,7 @@ def command(
             raise TypeError('command function must be a coroutine function')
 
         if description is MISSING:
-            if func.__doc__ is None:
-                desc = '…'
-            else:
-                desc = _shorten(func.__doc__)
+            desc = '…' if func.__doc__ is None else _shorten(func.__doc__)
         else:
             desc = description
 
@@ -1997,11 +1995,7 @@ def guild_only(func: Optional[T] = None) -> Union[T, Callable[[T], T]]:
         return f
 
     # Check if called with parentheses or not
-    if func is None:
-        # Called with parentheses
-        return inner
-    else:
-        return inner(func)
+    return inner if func is None else inner(func)
 
 
 def default_permissions(**perms: bool) -> Callable[[T], T]:

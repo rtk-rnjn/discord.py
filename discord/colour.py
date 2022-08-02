@@ -194,7 +194,7 @@ class Colour:
         if value[0] == '#':
             return parse_hex_number(value[1:])
 
-        if value[0:2] == '0x':
+        if value.startswith('0x'):
             rest = value[2:]
             # Legacy backwards compatible syntax
             if rest.startswith('#'):
@@ -202,7 +202,7 @@ class Colour:
             return parse_hex_number(rest)
 
         arg = value.lower()
-        if arg[0:3] == 'rgb':
+        if arg.startswith('rgb'):
             return parse_rgb(arg)
 
         raise ValueError('unknown colour format given')

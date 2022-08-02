@@ -218,7 +218,7 @@ def flatten_user(cls: Any) -> Type[Member]:
         # if it's a slotted attribute or a property, redirect it
         # slotted members are implemented as member_descriptors in Type.__dict__
         if not hasattr(value, '__annotations__'):
-            getter = attrgetter('_user.' + attr)
+            getter = attrgetter(f'_user.{attr}')
             setattr(cls, attr, property(getter, doc=f'Equivalent to :attr:`User.{attr}`'))
         else:
             # Technically, this can also use attrgetter
@@ -449,9 +449,7 @@ class Member(discord.abc.Messageable, _UserTag):
         self.activities = tuple(create_activity(d, self._state) for d in data['activities'])
         self._client_status._update(data['status'], data['client_status'])
 
-        if len(user) > 1:
-            return self._update_inner_user(user)
-        return None
+        return self._update_inner_user(user) if len(user) > 1 else None
 
     def _update_inner_user(self, user: UserPayload) -> Optional[Tuple[User, User]]:
         u = self._user
@@ -541,8 +539,7 @@ class Member(discord.abc.Messageable, _UserTag):
         result = []
         g = self.guild
         for role_id in self._roles:
-            role = g.get_role(role_id)
-            if role:
+            if role := g.get_role(role_id):
                 result.append(role)
         result.append(g.default_role)
         result.sort()
@@ -558,8 +555,7 @@ class Member(discord.abc.Messageable, _UserTag):
 
         roles = self.roles[1:]  # remove @everyone
         for role in reversed(roles):
-            icon = role.display_icon
-            if icon:
+            if icon := role.display_icon:
                 return icon
 
         return None
@@ -697,9 +693,7 @@ class Member(discord.abc.Messageable, _UserTag):
 
         .. versionadded:: 2.0
         """
-        if self._permissions is None:
-            return None
-        return Permissions(self._permissions)
+        return None if self._permissions is None else Permissions(self._permissions)
 
     @property
     def voice(self) -> Optional[VoiceState]:
@@ -861,11 +855,11 @@ class Member(discord.abc.Messageable, _UserTag):
         if timed_out_until is not MISSING:
             if timed_out_until is None:
                 payload['communication_disabled_until'] = None
+            elif timed_out_until.tzinfo is None:
+                raise TypeError(
+                    'timed_out_until must be an aware datetime. Consider using discord.utils.utcnow() or datetime.datetime.now().astimezone() for local time.'
+                )
             else:
-                if timed_out_until.tzinfo is None:
-                    raise TypeError(
-                        'timed_out_until must be an aware datetime. Consider using discord.utils.utcnow() or datetime.datetime.now().astimezone() for local time.'
-                    )
                 payload['communication_disabled_until'] = timed_out_until.isoformat()
 
         if payload:

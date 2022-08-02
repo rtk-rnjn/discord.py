@@ -556,23 +556,11 @@ def interaction_message_response_params(
         data['embeds'] = [e.to_dict() for e in embeds]
 
     if embed is not MISSING:
-        if embed is None:
-            data['embeds'] = []
-        else:
-            data['embeds'] = [embed.to_dict()]
-
+        data['embeds'] = [] if embed is None else [embed.to_dict()]
     if content is not MISSING:
-        if content is not None:
-            data['content'] = str(content)
-        else:
-            data['content'] = None
-
+        data['content'] = str(content) if content is not None else None
     if view is not MISSING:
-        if view is not None:
-            data['components'] = view.to_components()
-        else:
-            data['components'] = []
-
+        data['components'] = view.to_components() if view is not None else []
     if flags is not MISSING:
         data['flags'] = flags.value
 
@@ -606,15 +594,16 @@ def interaction_message_response_params(
         data = {'type': type, 'data': data}
         multipart.append({'name': 'payload_json', 'value': utils._to_json(data)})
         data = None
-        for index, file in enumerate(files):
-            multipart.append(
-                {
-                    'name': f'files[{index}]',
-                    'value': file.fp,
-                    'filename': file.filename,
-                    'content_type': 'application/octet-stream',
-                }
-            )
+        multipart.extend(
+            {
+                'name': f'files[{index}]',
+                'value': file.fp,
+                'filename': file.filename,
+                'content_type': 'application/octet-stream',
+            }
+            for index, file in enumerate(files)
+        )
+
     else:
         data = {'type': type, 'data': data}
 
@@ -697,17 +686,11 @@ class _WebhookState:
         self._webhook: Any = webhook
 
         self._parent: Optional[ConnectionState]
-        if isinstance(parent, _WebhookState):
-            self._parent = None
-        else:
-            self._parent = parent
-
+        self._parent = None if isinstance(parent, _WebhookState) else parent
         self._thread: Snowflake = thread
 
     def _get_guild(self, guild_id: Optional[int]) -> Optional[Guild]:
-        if self._parent is not None:
-            return self._parent._get_guild(guild_id)
-        return None
+        return self._parent._get_guild(guild_id) if self._parent is not None else None
 
     def store_user(self, data: Union[UserPayload, PartialUserPayload]) -> BaseUser:
         if self._parent is not None:
@@ -725,11 +708,15 @@ class _WebhookState:
 
         emoji_id = utils._get_as_snowflake(data, 'id')
 
-        if not emoji_id:
-            # the name key will be a str
-            return data['name']  # type: ignore
-
-        return PartialEmoji(animated=data.get('animated', False), id=emoji_id, name=data['name'])  # type: ignore
+        return (
+            PartialEmoji(
+                animated=data.get('animated', False),
+                id=emoji_id,
+                name=data['name'],
+            )
+            if emoji_id
+            else data['name']
+        )
 
     @property
     def http(self) -> Union[HTTPClient, _FriendlyHttpAttributeErrorHelper]:
@@ -1691,7 +1678,7 @@ class Webhook(BaseWebhook):
             if not hasattr(view, '__discord_ui_view__'):
                 raise TypeError(f'expected view parameter to be of type View not {view.__class__!r}')
 
-            if ephemeral is True and view.timeout is None:
+            if ephemeral and view.timeout is None:
                 view.timeout = 15 * 60.0
 
         if thread_name is not MISSING and thread is not MISSING:
@@ -1730,10 +1717,7 @@ class Webhook(BaseWebhook):
             wait=wait,
         )
 
-        msg = None
-        if wait:
-            msg = self._create_message(data, thread=thread)
-
+        msg = self._create_message(data, thread=thread) if wait else None
         if view is not MISSING and not view.is_finished():
             message_id = None if msg is None else msg.id
             self._state.store_view(view, message_id)

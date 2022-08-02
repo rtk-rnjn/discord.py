@@ -355,7 +355,7 @@ def _make_choice_transformer(inner_type: Any) -> Type[Transformer]:
 def _make_enum_transformer(enum) -> Type[Transformer]:
     values = list(enum)
     if len(values) < 2:
-        raise TypeError(f'enum.Enum requires at least two values.')
+        raise TypeError('enum.Enum requires at least two values.')
 
     first = type(values[0].value)
     if first is int:
@@ -383,7 +383,7 @@ def _make_enum_transformer(enum) -> Type[Transformer]:
 def _make_complex_enum_transformer(enum) -> Type[Transformer]:
     values = list(enum)
     if len(values) < 2:
-        raise TypeError(f'enum.Enum requires at least two values.')
+        raise TypeError('enum.Enum requires at least two values.')
 
     async def transform(cls, interaction: Interaction, value: Any) -> Any:
         return enum[value]
@@ -422,15 +422,16 @@ else:
                 raise TypeError(f'expected tuple for arguments, received {items.__class__!r} instead')
 
             if len(items) != 2:
-                raise TypeError(f'Transform only accepts exactly two arguments')
+                raise TypeError('Transform only accepts exactly two arguments')
 
             _, transformer = items
 
-            is_valid = inspect.isclass(transformer) and issubclass(transformer, Transformer)
-            if not is_valid:
+            if is_valid := inspect.isclass(transformer) and issubclass(
+                transformer, Transformer
+            ):
+                return _TransformMetadata(transformer)
+            else:
                 raise TypeError(f'second argument of Transform must be a Transformer class not {transformer!r}')
-
-            return _TransformMetadata(transformer)
 
     class Range:
         """A type annotation that can be applied to a parameter to require a numeric type
@@ -471,10 +472,8 @@ else:
             if min is None and max is None:
                 raise TypeError('Range must not be empty')
 
-            if min is not None and max is not None:
-                # At this point max and min are both not none
-                if type(min) != type(max):
-                    raise TypeError('Both min and max in Range must be the same type')
+            if min is not None and max is not None and type(min) != type(max):
+                raise TypeError('Both min and max in Range must be the same type')
 
             if obj_type is int:
                 opt_type = AppCommandOptionType.integer
@@ -554,7 +553,10 @@ def channel_transformer(*channel_types: Type[Any], raw: Optional[bool] = False) 
             try:
                 types.extend(CHANNEL_TO_TYPES[t])
             except KeyError:
-                raise TypeError(f'Union type of channels must be entirely made up of channels') from None
+                raise TypeError(
+                    'Union type of channels must be entirely made up of channels'
+                ) from None
+
 
     return type(
         f'{name}Transformer',
@@ -651,7 +653,7 @@ def get_supported_annotation(
             else:
                 return (_make_complex_enum_transformer(annotation), MISSING, False)
         if annotation is Choice:
-            raise TypeError(f'Choice requires a type argument of int, str, or float')
+            raise TypeError('Choice requires a type argument of int, str, or float')
 
     # Check if there's an origin
     origin = getattr(annotation, '__origin__', None)
@@ -690,9 +692,9 @@ def get_supported_annotation(
     # [Member, User, Role] => mentionable
     # [Member | User, Role] => mentionable
     supported_types: Set[Any] = {Role, Member, User}
-    if not all(arg in supported_types for arg in args):
+    if any(arg not in supported_types for arg in args):
         raise TypeError(f'unsupported types given inside {annotation!r}')
-    if args == (User, Member) or args == (Member, User):
+    if args in [(User, Member), (Member, User)]:
         return (passthrough_transformer(AppCommandOptionType.user), default, True)
 
     return (passthrough_transformer(AppCommandOptionType.mentionable), default, True)
